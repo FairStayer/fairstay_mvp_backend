@@ -2,7 +2,7 @@
   "name": "fairstay_mvp_backend",
   "version": "1.0.0",
   "description": "FairStay MVP Backend - Serverless image damage detection and reporting service with DynamoDB",
-  "main": "dist/lambda.js",
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
