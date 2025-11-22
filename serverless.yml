@@ -1,0 +1,81 @@
+service: fairstay-mvp-backend
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-northeast-2  # 서울 리전
+  stage: ${opt:stage, 'prod'}
+  memorySize: 512
+  timeout: 30
+  
+  # 환경 변수
+  environment:
+    NODE_ENV: production
+    AWS_REGION: ${self:provider.region}
+    S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
+    DYNAMODB_TABLE_PREFIX: ${env:DYNAMODB_TABLE_PREFIX, 'fairstay-mvp-dynamo'}
+    AI_SERVER_URL: ${env:AI_SERVER_URL}
+  
+  # IAM 권한
+  iam:
+    role:
+      statements:
+        # S3 권한
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource:
+            - arn:aws:s3:::${env:S3_BUCKET_NAME}/*
+        
+        # DynamoDB 권한
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:UpdateItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource:
+            - arn:aws:dynamodb:${self:provider.region}:*:table/${env:DYNAMODB_TABLE_PREFIX}_*
+
+functions:
+  api:
+    handler: dist/lambda.handler
+    events:
+      - http:
+          path: /{proxy+}
+          method: ANY
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
+      - http:
+          path: /
+          method: ANY
+          cors:
+            origin: '*'
+
+plugins:
+  - serverless-plugin-typescript
+  - serverless-offline
+
+custom:
+  serverless-offline:
+    httpPort: 3000
+
+package:
+  patterns:
+    - dist/**
+    - node_modules/**
+    - package.json
+
