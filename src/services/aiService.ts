@@ -16,9 +16,13 @@ export interface AIDamage {
   bounding_box?: BoundingBox;
 }
 
-// AI 서버의 실제 응답 형식
+// AI 서버의 실제 응답 형식 (AI가 정의하는 Source of Truth)
 export interface AIServerResponse {
-  image_url: string;  // AI 서버가 반환하는 처리된 이미지 URL
+  file_id: string;                // AI가 생성한 파일 ID
+  image_url: string;              // AI 서버가 반환하는 처리된 이미지 URL (상대경로 또는 절대경로)
+  has_crack: boolean;             // crack 감지 여부
+  confidence: number;             // 신뢰도 (0.0 ~ 1.0)
+  bounding_boxes?: BoundingBox[]; // 감지된 영역 (선택적)
 }
 
 export interface AnalysisResult {
@@ -50,7 +54,7 @@ export const analyzeImage = async (imageUrl: string): Promise<AnalysisResult> =>
       timeout: 30000,
     });
 
-    // FormData 생성하여 이미지 파일 전송
+    // FormData 생성하여 이미지 파일 전송 (필드명: 'image' - AI와 계약된 표준)
     const formData = new FormData();
     formData.append('image', Buffer.from(imageResponse.data), {
       filename: 'image.jpg',
@@ -70,22 +74,28 @@ export const analyzeImage = async (imageUrl: string): Promise<AnalysisResult> =>
     );
     
     if (response.data && response.data.image_url) {
-      // AI 서버가 crack을 감지하면 처리된 이미지 URL을 반환
-      // 실제로 몇 개의 crack이 감지되었는지는 이미지를 파싱해야 알 수 있지만,
-      // 일단 기본 정보를 반환 (추후 AI 서버에서 메타데이터를 추가로 반환하도록 개선 가능)
-      const processedImageUrl = `${aiServerUrl}${response.data.image_url}`;
+      // AI 응답을 기준으로 백엔드 서비스 모델로 변환 (Backend = Translator)
+      // URL 안전하게 조합 (상대경로/절대경로 모두 처리)
+      const processedImageUrl = new URL(response.data.image_url, aiServerUrl).toString();
+      
+      // AI가 제공하는 실제 메타데이터 활용
+      const damages = response.data.has_crack
+        ? [
+            {
+              type: 'crack',
+              severity: response.data.confidence > 0.8 ? 'high' : response.data.confidence > 0.5 ? 'medium' : 'low',
+              location: 'detected',
+              confidence: response.data.confidence,
+              boundingBox: response.data.bounding_boxes && response.data.bounding_boxes.length > 0
+                ? response.data.bounding_boxes[0]
+                : null,
+            },
+          ]
+        : [];
       
       return {
         processedImageUrl,
-        damages: [
-          {
-            type: 'crack',
-            severity: 'medium',
-            location: 'detected',
-            confidence: 0.8,
-            boundingBox: null,
-          }
-        ],
+        damages,
       };
     }
     
