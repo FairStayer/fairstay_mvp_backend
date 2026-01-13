@@ -280,16 +280,21 @@
   ```json
   {
     "sessionId": "uuid",
-    "response": "helpful",
-    "additionalComments": "AI 분석이 유용했습니다 (선택)"
+    "hasRealEstateExperience": true,
+    "explanationRating": 4,
+    "processConvenienceRating": 5,
+    "overallSatisfactionRating": 4,
+    "additionalComments": "입력 바랍니다. (선택)"
   }
   ```
-  - **response 가능한 값:**
-    - `very_helpful` - 매우 유용함
-    - `helpful` - 유용함
-    - `neutral` - 보통
-    - `not_helpful` - 도움 안됨
-    - `not_needed` - 불필요함
+  - **필수 필드:**
+    - `sessionId` (string) - 세션 ID
+    - `hasRealEstateExperience` (boolean) - Q1: 이전에 부동산 계약을 치뤄본 적이 있습니까?
+    - `explanationRating` (number 1-5) - Q2: 리프트의 설명은 상세했나요?
+    - `processConvenienceRating` (number 1-5) - Q3: 리프트 생성 과정은 편리했나요?
+    - `overallSatisfactionRating` (number 1-5) - Q4: 전반적인 리프트의 만족도
+  - **선택 필드:**
+    - `additionalComments` (string) - Q5: 추가적인 의견
 - **응답:**
   ```json
   {
@@ -306,18 +311,28 @@
     "success": true,
     "stats": {
       "total": 150,
-      "breakdown": {
-        "very_helpful": 80,
-        "helpful": 50,
-        "neutral": 15,
-        "not_helpful": 3,
-        "not_needed": 2
+      "hasRealEstateExperience": {
+        "yes": 80,
+        "no": 70
+      },
+      "averageRatings": {
+        "explanation": 4.2,
+        "processConvenience": 4.5,
+        "overallSatisfaction": 4.3
+      },
+      "ratingDistribution": {
+        "explanation": { "1": 2, "2": 5, "3": 20, "4": 60, "5": 63 },
+        "processConvenience": { "1": 1, "2": 3, "3": 15, "4": 50, "5": 81 },
+        "overallSatisfaction": { "1": 1, "2": 4, "3": 18, "4": 55, "5": 72 }
       }
     },
     "responses": [
       {
         "sessionId": "uuid",
-        "response": "helpful",
+        "hasRealEstateExperience": true,
+        "explanationRating": 4,
+        "processConvenienceRating": 5,
+        "overallSatisfactionRating": 4,
         "additionalComments": "...",
         "createdAt": 1768287600000
       }
@@ -401,8 +416,11 @@ curl -X POST https://y0uhk6afg9.execute-api.ap-northeast-2.amazonaws.com/default
   -H "Content-Type: application/json" \
   -d '{
     "sessionId": "your-session-id",
-    "response": "helpful",
-    "additionalComments": "AI 분석이 유용했습니다"
+    "hasRealEstateExperience": true,
+    "explanationRating": 4,
+    "processConvenienceRating": 5,
+    "overallSatisfactionRating": 4,
+    "additionalComments": "입력 바랍니다."
   }'
 ```
 
