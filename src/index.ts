@@ -16,7 +16,6 @@
 import serverless from 'serverless-http';
 import { connectDB } from './config/database';
 import app from './app';
-import { Handler, Context, APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 // DynamoDB 연결 상태
 let isConnected = false;
@@ -39,20 +38,42 @@ const connectToDatabase = async (): Promise<void> => {
 
 /**
  * API Gateway 경로 정규화
+ * /default/fairstay-mvp-backend/api/session -> /api/session
  * /fairstay-mvp-backend/api/session -> /api/session
  */
-const normalizeApiGatewayPath = (event: APIGatewayProxyEvent): APIGatewayProxyEvent => {
-  const basePath = '/fairstay-mvp-backend';
+const normalizeApiGatewayPath = (event: any): any => {
+  const basePaths = [
+    '/default/fairstay-mvp-backend',  // API Gateway HTTP API with stage
+    '/fairstay-mvp-backend',          // API Gateway without stage
+  ];
   
-  if (event.path && event.path.startsWith(basePath)) {
-    console.log(`🔄 Path normalization: ${event.path} -> ${event.path.replace(basePath, '') || '/'}`);
-    event.path = event.path.replace(basePath, '') || '/';
-  }
+  // HTTP API v2.0: rawPath 사용
+  const originalPath = event.rawPath || event.path || event.requestContext?.http?.path || event.requestContext?.path;
   
-  // requestContext.path도 정규화 (있는 경우)
-  if (event.requestContext && 'path' in event.requestContext && typeof event.requestContext.path === 'string') {
-    if (event.requestContext.path.startsWith(basePath)) {
-      event.requestContext.path = event.requestContext.path.replace(basePath, '') || '/';
+  if (originalPath) {
+    for (const basePath of basePaths) {
+      if (originalPath.startsWith(basePath)) {
+        const normalizedPath = originalPath.replace(basePath, '') || '/';
+        console.log(`🔄 Path normalization: ${originalPath} -> ${normalizedPath}`);
+        
+        // HTTP API v2.0 포맷
+        if (event.rawPath) {
+          event.rawPath = normalizedPath;
+        }
+        // REST API v1.0 포맷
+        if (event.path) {
+          event.path = normalizedPath;
+        }
+        // requestContext.http.path (HTTP API v2.0)
+        if (event.requestContext?.http?.path) {
+          event.requestContext.http.path = normalizedPath;
+        }
+        // requestContext.path (REST API v1.0)
+        if (event.requestContext?.path) {
+          event.requestContext.path = normalizedPath;
+        }
+        break;
+      }
     }
   }
   
@@ -76,17 +97,23 @@ const validateEnvironment = (): { valid: boolean; missing: string[] } => {
  * Lambda Handler
  * API Gateway HTTP API와 통합
  */
-export const handler: Handler<APIGatewayProxyEvent, APIGatewayProxyResult> = async (
-  event: APIGatewayProxyEvent,
-  context: Context
-): Promise<APIGatewayProxyResult> => {
+export const handler = async (
+  event: any,
+  context: any
+): Promise<any> => {
+  // 🔥 강제 이벤트 덤프 (타입 무시)
+  console.log('📋 FULL EVENT DUMP:', JSON.stringify(event, null, 2));
+  console.log('📋 EVENT KEYS:', Object.keys(event));
+  console.log('📋 REQUEST CONTEXT:', JSON.stringify(event.requestContext, null, 2));
+  
   // Lambda 콜드 스타트 로깅
   console.log('🚀 Lambda invoked:', {
     requestId: context.awsRequestId,
     functionName: context.functionName,
     memoryLimit: context.memoryLimitInMB,
-    method: event.httpMethod,
-    path: event.path,
+    method: event.httpMethod || event.requestContext?.http?.method || event.requestContext?.httpMethod,
+    path: event.path || event.rawPath || event.requestContext?.http?.path || event.requestContext?.resourcePath,
+    routeKey: event.requestContext?.routeKey,
   });
   
   // Lambda 함수가 종료되어도 연결 유지 (warm start 최적화)
@@ -136,9 +163,13 @@ export const handler: Handler<APIGatewayProxyEvent, APIGatewayProxyResult> = asy
   try {
     const serverlessHandler = serverless(app, {
       binary: ['image/*', 'application/pdf'], // 바이너리 데이터 처리
+      request(request: any, event: any) {
+        // HTTP API v2.0 포맷 처리
+        request.requestContext = event.requestContext;
+      },
     });
     
-    const result = await serverlessHandler(normalizedEvent, context) as APIGatewayProxyResult;
+    const result = await serverlessHandler(normalizedEvent, context) as any;
     
     console.log('✅ Request completed:', {
       statusCode: result.statusCode,
