@@ -2,15 +2,14 @@ import AWS from 'aws-sdk';
 import { v4 as uuidv4 } from 'uuid';
 
 // AWS SDK 설정
+// Lambda 환경에서는 IAM 역할의 자격 증명이 자동으로 사용됩니다
 AWS.config.update({
-  region: process.env.AWS_REGION || 'ap-northeast-2',
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.S3_REGION || process.env.AWS_REGION || 'ap-northeast-2',
 });
 
 const s3 = new AWS.S3({
   apiVersion: '2006-03-01',
-  region: process.env.S3_REGION || process.env.AWS_REGION,
+  region: process.env.S3_REGION || process.env.AWS_REGION || 'ap-northeast-2',
 });
 
 export interface UploadResult {
@@ -40,13 +39,16 @@ export const uploadToS3 = async (
       Key: fileName,
       Body: file.buffer,
       ContentType: file.mimetype,
-      ACL: 'public-read',
     };
     
     const result = await s3.upload(params).promise();
     
+    // ACL 대신 버킷 정책으로 public 접근 설정
+    // 또는 Presigned URL 사용
+    const imageUrl = `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.S3_REGION || 'ap-northeast-2'}.amazonaws.com/${fileName}`;
+    
     return {
-      imageUrl: result.Location,
+      imageUrl,
       s3Key: result.Key,
     };
   } catch (error) {
@@ -96,6 +98,40 @@ export const getPresignedUrl = async (
   } catch (error) {
     console.error('S3 presigned URL error:', error);
     throw new Error('Failed to generate presigned URL');
+  }
+};
+
+/**
+ * S3 업로드용 Presigned URL 생성
+ */
+export const generateUploadPresignedUrl = async (
+  sessionId: string,
+  filename: string,
+  contentType: string,
+  expiresIn: number = 300 // 5분
+): Promise<{ uploadUrl: string; s3Key: string; imageUrl: string }> => {
+  try {
+    const fileExtension = filename.split('.').pop();
+    const s3Key = `${sessionId}/${uuidv4()}.${fileExtension}`;
+    
+    const params = {
+      Bucket: process.env.S3_BUCKET_NAME as string,
+      Key: s3Key,
+      ContentType: contentType,
+      Expires: expiresIn,
+    };
+    
+    const uploadUrl = await s3.getSignedUrlPromise('putObject', params);
+    const imageUrl = `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.S3_REGION || 'ap-northeast-2'}.amazonaws.com/${s3Key}`;
+    
+    return {
+      uploadUrl,
+      s3Key,
+      imageUrl,
+    };
+  } catch (error) {
+    console.error('S3 upload presigned URL error:', error);
+    throw new Error('Failed to generate upload presigned URL');
   }
 };
 

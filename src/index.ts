@@ -162,7 +162,11 @@ export const handler = async (
   // Express 앱을 serverless-http로 래핑하여 실행
   try {
     const serverlessHandler = serverless(app, {
-      binary: ['image/*', 'application/pdf'], // 바이너리 데이터 처리
+      binary: [
+        'image/*',
+        'application/pdf',
+        'multipart/form-data'
+      ],
       request(request: any, event: any) {
         // HTTP API v2.0 포맷 처리
         request.requestContext = event.requestContext;

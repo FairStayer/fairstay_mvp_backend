@@ -40,30 +40,50 @@ export interface AnalysisResult {
  * AI 서버에 이미지 분석 요청
  * AI 서버는 /detect-crack 엔드포인트를 사용하고 multipart/form-data로 이미지 파일을 받음
  */
-export const analyzeImage = async (imageUrl: string): Promise<AnalysisResult> => {
+export const analyzeImage = async (s3Key: string): Promise<AnalysisResult> => {
   try {
+    console.log('🔧 analyzeImage 호출됨:', s3Key);
     const aiServerUrl = process.env.AI_SERVER_URL;
     
     if (!aiServerUrl) {
+      console.error('❌ AI_SERVER_URL이 설정되지 않음');
       throw new Error('AI_SERVER_URL is not configured');
     }
+    console.log('✅ AI Server URL:', aiServerUrl);
 
-    // S3 이미지 URL에서 이미지를 다운로드
-    const imageResponse = await axios.get(imageUrl, {
-      responseType: 'arraybuffer',
-      timeout: 30000,
+    // S3에서 이미지 다운로드 (AWS SDK 사용 - IAM 권한으로 private 버킷 접근)
+    console.log('📥 S3에서 이미지 다운로드 시작:', {
+      bucket: process.env.S3_BUCKET_NAME,
+      key: s3Key,
+    });
+    const AWS = require('aws-sdk');
+    const s3 = new AWS.S3({
+      region: process.env.S3_REGION || process.env.AWS_REGION || 'ap-northeast-2',
+    });
+    
+    const s3Object = await s3.getObject({
+      Bucket: process.env.S3_BUCKET_NAME as string,
+      Key: s3Key,
+    }).promise();
+    console.log('✅ S3 이미지 다운로드 완료:', {
+      size: s3Object.Body?.length || 0,
+      contentType: s3Object.ContentType,
     });
 
     // FormData 생성하여 이미지 파일 전송 (필드명: 'image' - AI와 계약된 표준)
+    console.log('📦 FormData 생성 중...');
     const formData = new FormData();
-    formData.append('image', Buffer.from(imageResponse.data), {
+    formData.append('image', s3Object.Body as Buffer, {
       filename: 'image.jpg',
-      contentType: 'image/jpeg',
+      contentType: s3Object.ContentType || 'image/jpeg',
     });
+    console.log('✅ FormData 생성 완료');
 
     // AI 서버의 /detect-crack 엔드포인트 호출
+    const aiEndpoint = `${aiServerUrl}/detect-crack`;
+    console.log('🚀 AI 서버로 POST 요청 전송:', aiEndpoint);
     const response: AxiosResponse<AIServerResponse> = await axios.post(
-      `${aiServerUrl}/detect-crack`,
+      aiEndpoint,
       formData,
       {
         headers: {
@@ -72,6 +92,10 @@ export const analyzeImage = async (imageUrl: string): Promise<AnalysisResult> =>
         timeout: 60000,
       }
     );
+    console.log('✅ AI 서버 응답 받음:', {
+      status: response.status,
+      data: response.data,
+    });
     
     if (response.data && response.data.image_url) {
       // AI 응답을 기준으로 백엔드 서비스 모델로 변환 (Backend = Translator)
