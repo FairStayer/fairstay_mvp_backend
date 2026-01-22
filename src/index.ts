@@ -84,7 +84,13 @@ const normalizeApiGatewayPath = (event: any): any => {
  * 환경 변수 검증
  */
 const validateEnvironment = (): { valid: boolean; missing: string[] } => {
-  const required = ['S3_BUCKET_NAME', 'DYNAMODB_TABLE_PREFIX', 'AI_SERVER_URL'];
+  const required = [
+    'S3_BUCKET_NAME', 
+    'AI_SERVER_URL',
+    'DYNAMODB_SESSIONS_TABLE',
+    'DYNAMODB_IMAGES_TABLE',
+    'DYNAMODB_SURVEY_TABLE'
+  ];
   const missing = required.filter(key => !process.env[key]);
   
   return {
