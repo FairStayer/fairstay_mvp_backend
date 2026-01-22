@@ -1,8 +1,5 @@
 import request from 'supertest';
 import app from '../app';
-import Session from '../models/Session';
-import Image from '../models/Image';
-import SurveyResponse from '../models/SurveyResponse';
 import * as s3Service from '../services/s3Service';
 import * as aiService from '../services/aiService';
 import * as pdfService from '../services/pdfService';

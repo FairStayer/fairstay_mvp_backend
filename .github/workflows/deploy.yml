@@ -25,6 +25,10 @@ jobs:
 
       - name: Run tests
         run: npm test
+        env:
+          DYNAMODB_SESSIONS_TABLE: fairstay-mvp-dynamo_sessions
+          DYNAMODB_IMAGES_TABLE: fairstay-mvp-dynamo_images
+          DYNAMODB_SURVEY_TABLE: fairstay-mvp-dynamo_survey_responses
 
       - name: Build TypeScript
         run: npm run build
@@ -51,6 +55,15 @@ jobs:
           aws lambda update-function-code \
             --function-name fairstay-mvp-backend \
             --zip-file fileb://fairstay-mvp-backend-lambda.zip
+          
+          aws lambda update-function-configuration \
+            --function-name fairstay-mvp-backend \
+            --environment Variables="{\
+              DYNAMODB_SESSIONS_TABLE=fairstay-mvp-dynamo_sessions,\
+              DYNAMODB_IMAGES_TABLE=fairstay-mvp-dynamo_images,\
+              DYNAMODB_SURVEY_TABLE=fairstay-mvp-dynamo_survey_responses,\
+              AWS_REGION=${{ secrets.AWS_REGION }}\
+            }"
 
       - name: Wait for Lambda update
         run: |
