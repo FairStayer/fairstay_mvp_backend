@@ -79,7 +79,7 @@ describe('FairStay MVP Backend - Complete Test Suite', () => {
       
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.message).toContain('ProofIn');
+      expect(res.body.message).toContain('FairStay');
     });
 
     it('should return health status', async () => {
@@ -111,6 +111,16 @@ describe('FairStay MVP Backend - Complete Test Suite', () => {
         .post('/api/session/create')
         .send();
       const testSessionId = createRes.body.sessionId;
+
+      // DynamoDB get mock - 세션 찾기
+      (documentClient.get as any).mockReturnValueOnce({
+        promise: jest.fn().mockResolvedValue({
+          Item: {
+            sessionId: testSessionId,
+            createdAt: Date.now(),
+          },
+        }),
+      });
 
       // 세션 검증
       const res = await request(app)
@@ -382,11 +392,19 @@ describe('FairStay MVP Backend - Complete Test Suite', () => {
   // ========== Survey ==========
   describe('Survey API', () => {
     it('should submit survey response', async () => {
+      // DynamoDB put mock
+      (documentClient.put as any).mockReturnValueOnce({
+        promise: jest.fn().mockResolvedValue({}),
+      });
+
       const res = await request(app)
         .post('/api/survey/submit')
         .send({
           sessionId: 'test-session',
-          response: 'very_helpful',
+          hasRealEstateExperience: true,
+          explanationRating: 5,
+          processConvenienceRating: 4,
+          overallSatisfactionRating: 5,
           additionalComments: 'Great service!',
         });
       
@@ -399,7 +417,10 @@ describe('FairStay MVP Backend - Complete Test Suite', () => {
         .post('/api/survey/submit')
         .send({
           sessionId: 'test-session',
-          response: 'invalid_response',
+          hasRealEstateExperience: true,
+          explanationRating: 6, // Invalid: should be 1-5
+          processConvenienceRating: 4,
+          overallSatisfactionRating: 5,
         });
       
       expect(res.status).toBe(400);
@@ -414,19 +435,28 @@ describe('FairStay MVP Backend - Complete Test Suite', () => {
             {
               responseId: 'response-1',
               sessionId: 'session-1',
-              response: 'very_helpful',
+              hasRealEstateExperience: true,
+              explanationRating: 5,
+              processConvenienceRating: 4,
+              overallSatisfactionRating: 5,
               createdAt: Date.now() - 2000,
             },
             {
               responseId: 'response-2',
               sessionId: 'session-2',
-              response: 'helpful',
+              hasRealEstateExperience: false,
+              explanationRating: 4,
+              processConvenienceRating: 3,
+              overallSatisfactionRating: 4,
               createdAt: Date.now() - 1000,
             },
             {
               responseId: 'response-3',
               sessionId: 'session-3',
-              response: 'very_helpful',
+              hasRealEstateExperience: true,
+              explanationRating: 5,
+              processConvenienceRating: 5,
+              overallSatisfactionRating: 5,
               createdAt: Date.now(),
             },
           ],
@@ -439,8 +469,8 @@ describe('FairStay MVP Backend - Complete Test Suite', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.stats.total).toBe(3);
-      expect(res.body.stats.breakdown.very_helpful).toBe(2);
-      expect(res.body.stats.breakdown.helpful).toBe(1);
+      expect(res.body.stats.hasRealEstateExperience).toBeDefined();
+      expect(res.body.stats.averageRatings).toBeDefined();
     });
   });
 
@@ -510,29 +540,103 @@ describe('FairStay MVP Backend - Complete Test Suite', () => {
       expect(uploadRes.status).toBe(201);
       const testImageId = uploadRes.body.imageId;
 
-      // 3. AI 분석
+      // 3. AI 분석 - DynamoDB get mock 추가
+      (documentClient.get as any).mockReturnValueOnce({
+        promise: jest.fn().mockResolvedValue({
+          Item: {
+            imageId: testImageId,
+            sessionId: testSessionId,
+            s3Key: 'test-s3-key',
+            damageAnalysis: {
+              status: 'pending',
+            },
+          },
+        }),
+      });
+      // 첫 번째 update - processing 상태로 변경
+      (documentClient.update as any).mockReturnValueOnce({
+        promise: jest.fn().mockResolvedValue({
+          Attributes: {
+            imageId: testImageId,
+            damageAnalysis: {
+              status: 'processing',
+            },
+          },
+        }),
+      });
+      // 두 번째 update - completed 상태로 변경 (분석 결과 포함)
+      (documentClient.update as any).mockReturnValueOnce({
+        promise: jest.fn().mockResolvedValue({
+          Attributes: {
+            imageId: testImageId,
+            damageAnalysis: {
+              status: 'completed',
+              damages: [{
+                type: 'crack',
+                severity: 'high',
+                location: 'ceiling',
+                confidence: 0.92,
+                boundingBox: { x: 0, y: 0, width: 100, height: 100 },
+              }],
+            },
+          },
+        }),
+      });
+      
       const analyzeRes = await request(app)
         .post(`/api/image/analyze/${testImageId}`);
       expect(analyzeRes.status).toBe(200);
       expect(analyzeRes.body.status).toBe('completed');
 
-      // 4. PDF 생성
+      // 4. PDF 생성 - get mock 추가
+      (documentClient.get as any).mockReturnValueOnce({
+        promise: jest.fn().mockResolvedValue({
+          Item: {
+            imageId: testImageId,
+            sessionId: testSessionId,
+            s3Url: 'https://s3.amazonaws.com/test-image.jpg',
+            damageAnalysis: {
+              status: 'completed',
+              damages: [{
+                type: 'crack',
+                severity: 'high',
+                location: 'ceiling',
+                confidence: 0.92,
+              }],
+            },
+          },
+        }),
+      });
       const pdfRes = await request(app)
         .post(`/api/share/generate/${testImageId}`);
       expect(pdfRes.status).toBe(200);
       expect(pdfRes.body.pdf).toBeDefined();
 
       // 5. 설문 제출
+      (documentClient.put as any).mockReturnValueOnce({
+        promise: jest.fn().mockResolvedValue({}),
+      });
       const surveyRes = await request(app)
         .post('/api/survey/submit')
         .send({
           sessionId: testSessionId,
-          response: 'very_helpful',
+          hasRealEstateExperience: true,
+          explanationRating: 5,
+          processConvenienceRating: 5,
+          overallSatisfactionRating: 5,
           additionalComments: 'Perfect workflow!',
         });
       expect(surveyRes.status).toBe(201);
 
       // 6. 세션 검증
+      (documentClient.get as any).mockReturnValueOnce({
+        promise: jest.fn().mockResolvedValue({
+          Item: {
+            sessionId: testSessionId,
+            createdAt: Date.now(),
+          },
+        }),
+      });
       const validateRes = await request(app)
         .get(`/api/session/validate/${testSessionId}`);
       expect(validateRes.status).toBe(200);
