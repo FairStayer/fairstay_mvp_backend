@@ -50,12 +50,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
-      - name: Deploy to Lambda
+      - name: Deploy Lambda code
         run: |
           aws lambda update-function-code \
             --function-name fairstay-mvp-backend \
             --zip-file fileb://fairstay-mvp-backend-lambda.zip
-          
+
+      - name: Wait for code update
+        run: |
+          aws lambda wait function-updated \
+            --function-name fairstay-mvp-backend
+
+      - name: Update Lambda configuration
+        run: |
           aws lambda update-function-configuration \
             --function-name fairstay-mvp-backend \
             --environment Variables="{\
@@ -65,7 +72,7 @@ jobs:
               AWS_REGION=ap-northeast-2\
             }"
 
-      - name: Wait for Lambda update
+      - name: Wait for configuration update
         run: |
           aws lambda wait function-updated \
             --function-name fairstay-mvp-backend
