@@ -48,7 +48,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ap-northeast-2
 
       - name: Deploy to Lambda
         run: |
@@ -62,7 +62,7 @@ jobs:
               DYNAMODB_SESSIONS_TABLE=fairstay-mvp-dynamo_sessions,\
               DYNAMODB_IMAGES_TABLE=fairstay-mvp-dynamo_images,\
               DYNAMODB_SURVEY_TABLE=fairstay-mvp-dynamo_survey_responses,\
-              AWS_REGION=${{ secrets.AWS_REGION }}\
+              AWS_REGION=ap-northeast-2\
             }"
 
       - name: Wait for Lambda update
