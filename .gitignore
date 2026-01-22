@@ -47,3 +47,5 @@ temp/
 # Test coverage
 coverage/
 .nyc_output/
+
+LAMBDA_SETUP.md

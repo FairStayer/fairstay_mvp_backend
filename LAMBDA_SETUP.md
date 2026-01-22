@@ -151,19 +151,6 @@ cd fairstay_mvp_backend
 4. `fairstay-mvp-backend-lambda.zip` 선택
 5. **저장** 클릭
 
-#### 방법 2: S3 경유 (50MB 이상)
-```bash
-# S3에 업로드
-aws s3 cp fairstay-mvp-backend-lambda.zip s3://your-deployment-bucket/
-
-# Lambda 함수 업데이트
-aws lambda update-function-code \
-  --function-name fairstay-mvp-backend \
-  --s3-bucket your-deployment-bucket \
-  --s3-key fairstay-mvp-backend-lambda.zip \
-  --region ap-northeast-2
-```
-
 ### 3. 핸들러 설정 확인
 **구성(Configuration)** → **런타임 설정(Runtime settings)** → **편집(Edit)**
 - 핸들러: `index.handler` ✅
