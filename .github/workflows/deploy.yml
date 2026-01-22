@@ -68,8 +68,7 @@ jobs:
             --environment Variables="{\
               DYNAMODB_SESSIONS_TABLE=fairstay-mvp-dynamo_sessions,\
               DYNAMODB_IMAGES_TABLE=fairstay-mvp-dynamo_images,\
-              DYNAMODB_SURVEY_TABLE=fairstay-mvp-dynamo_survey_responses,\
-              AWS_REGION=ap-northeast-2\
+              DYNAMODB_SURVEY_TABLE=fairstay-mvp-dynamo_survey_responses\
             }"
 
       - name: Wait for configuration update
